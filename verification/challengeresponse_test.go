@@ -378,7 +378,7 @@ func TestChallengeResponseConfig_ChallengeResponse_sync_ok(t *testing.T) {
 		assert.Equal(t, http.MethodPost, r.Method)
 		assert.Equal(t, "application/vnd.veraison.challenge-response-session+json", r.Header.Get("Accept"))
 		assert.Equal(t, mediaType, r.Header.Get("Content-Type"))
-		defer r.Body.Close()
+		defer r.Body.Close() // nolint: errcheck
 		reqBody, _ := io.ReadAll(r.Body)
 		assert.Equal(t, evidence, reqBody)
 
@@ -883,7 +883,7 @@ func TestChallengeResponseConfig_Run_async_CMWWrap(t *testing.T) {
 		})
 
 		client, teardown := common.NewTestingHTTPClient(h)
-		defer teardown()
+		defer teardown() // nolint: gocritic
 		cfg := ChallengeResponseConfig{
 			Nonce:           testNonce,
 			NewSessionURI:   testNewSessionURI,
@@ -933,4 +933,22 @@ func TestChallengeResponseConfig_setters(t *testing.T) {
 
 	cfg.SetCerts(testCertPaths)
 	assert.EqualValues(t, testCertPaths, cfg.CACerts)
+}
+
+func TestStaticEvidenceBuilder_BuildEvidence_ok(t *testing.T) {
+	seb := NewStaticEvidenceBuilder(testEvidence, "application/my-evidence-media-type")
+
+	ev, mt, err := seb.BuildEvidence(testNonce, []string{"application/my-evidence-media-type", "application/other-media-type"})
+
+	assert.NoError(t, err)
+	assert.Equal(t, testEvidence, ev)
+	assert.Equal(t, "application/my-evidence-media-type", mt)
+}
+
+func TestStaticEvidenceBuilder_BuildEvidence_fail_media_type_not_accepted(t *testing.T) {
+	seb := NewStaticEvidenceBuilder(testEvidence, "application/my-evidence-media-type")
+
+	_, _, err := seb.BuildEvidence(testNonce, []string{"application/other-media-type"})
+
+	assert.ErrorContains(t, err, "no match for application/my-evidence-media-type")
 }
